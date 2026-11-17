@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI File Vault — подготовка файлов для ИИ</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #171a21;
+    --surface-2: #1d2230;
+    --border: #262b36;
+    --text: #e6e8ee;
+    --muted: #8b93a7;
+    --accent: #5b8cff;
+    --accent-hover: #7aa2ff;
+    --success: #3ddc97;
+    --danger: #ff6b6b;
+    --warning: #ffb454;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    padding: 2rem 1.5rem 1rem;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  header h1 {
+    margin: 0 0 .25rem;
+    font-size: 1.6rem;
+    letter-spacing: -.02em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+  .stats {
+    display: flex;
+    gap: 1.25rem;
+    margin-top: .75rem;
+    font-size: .85rem;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .stats b { color: var(--text); font-weight: 600; }
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 1.5rem 4rem;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: .15s ease;
+    background: var(--surface);
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--surface-2);
+  }
+  .dropzone-icon { font-size: 2rem; margin-bottom: .5rem; }
+  .dropzone-title { font-weight: 600; }
+  .dropzone-sub { color: var(--muted); font-size: .85rem; margin-top: .25rem; }
+  .settings {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: .75rem;
+    flex-wrap: wrap;
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  .settings label { display: flex; align-items: center; gap: .5rem; }
+  .settings input[type=number] {
+    width: 80px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: .35rem .5rem;
+    font-family: var(--mono);
+  }
+  .hint { color: var(--muted); font-size: .82rem; }
+
+  .files-section { margin-top: 2rem; }
+  .files-section h2 {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin: 0 0 .75rem;
+  }
+  .file-list { display: flex; flex-direction: column; gap: .5rem; }
+  .file-card {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: .75rem 1rem;
+  }
+  .file-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-meta {
+    font-size: .78rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: .1rem;
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+  }
+  .file-meta .updated-badge { color: var(--warning); }
+  .file-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+  .btn {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .4rem .7rem;
+    font-size: .82rem;
+    cursor: pointer;
+    transition: .12s;
+    font-family: inherit;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); color: #fff; }
+  .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 2rem;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+  }
+
+  /* MODAL */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 100;
+  }
+  .modal.open { display: flex; }
+  .modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .modal-header button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0 .25rem;
+  }
+  .modal-header button:hover { color: var(--text); }
+  .modal-toolbar {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .modal-meta {
+    margin-left: auto;
+    font-size: .78rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .modal-body {
+    overflow-y: auto;
+    padding: .75rem 1.25rem 1.25rem;
+  }
+  .chunk {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: .5rem;
+    background: var(--bg);
+  }
+  .chunk summary {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem .85rem;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    font-size: .85rem;
+  }
+  .chunk summary::-webkit-details-marker { display: none; }
+  .chunk summary::before {
+    content: '▸';
+    color: var(--muted);
+    transition: transform .15s;
+  }
+  .chunk[open] summary::before { transform: rotate(90deg); }
+  .chunk-label {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .chunk-range { color: var(--muted); font-family: var(--mono); font-size: .8rem; }
+  .btn-copy-chunk {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: .15rem .5rem;
+    font-size: .78rem;
+    cursor: pointer;
+  }
+  .btn-copy-chunk:hover { color: var(--accent); border-color: var(--accent); }
+  .chunk-pre {
+    margin: 0;
+    padding: .75rem .85rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: .8rem;
+    color: var(--text);
+    white-space: pre;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .7rem 1.1rem;
+    font-size: .88rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: .2s;
+    z-index: 200;
+    max-width: 90vw;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  .toast.warning { border-color: var(--warning); color: var(--warning); }
+
+  @media (max-width: 600px) {
+    .file-actions { flex-direction: column; }
+    .file-meta { font-size: .72rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📦 AI File Vault</h1>
+  <p>Загружайте файлы — они превратятся в шаблон, который ИИ прочитает полностью</p>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <section>
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">⬆️</div>
+      <div class="dropzone-title">Перетащите файлы сюда</div>
+      <div class="dropzone-sub">или нажмите, чтобы выбрать</div>
+      <input type="file" id="fileInput" multiple hidden>
+    </div>
+    <div class="settings">
+      <label>
+        Строк в чанке:
+        <input type="number" id="chunkSize" min="50" max="2000" step="50" value="400">
+      </label>
+      <span class="hint">Файлы с тем же именем обновляются автоматически</span>
+    </div>
+  </section>
+
+  <section class="files-section">
+    <h2>Файлы <span id="fileCount"></span></h2>
+    <div class="file-list" id="fileList"></div>
+    <div class="empty" id="empty">Пока нет файлов. Загрузите первый!</div>
+  </section>
+</main>
+
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalTitle"></h3>
+      <button id="modalClose" title="Закрыть">✕</button>
+    </div>
+    <div class="modal-toolbar">
+      <button id="copyAllBtn" class="btn btn-primary">📋 Скопировать всё</button>
+      <button id="downloadBtn" class="btn">💾 Скачать .txt</button>
+      <span class="modal-meta" id="modalMeta"></span>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   IndexedDB — хранилище файлов
+   ============================================================ */
+const DB_NAME = 'ai-file-vault';
+const DB_VERSION = 1;
+const STORE = 'files';
+const CHUNK_KEY = 'ai-file-vault-chunk-size';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: 'name' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbGet(name) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(name);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbPut(record) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbGetAll() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbDelete(name) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(name);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ============================================================
+   Утилиты
+   ============================================================ */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+function formatDate(ts) {
+  return new Date(ts).toLocaleString('ru-RU');
+}
+function fileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map = {
+    js:'🟨', mjs:'🟨', cjs:'🟨', ts:'🟦', jsx:'⚛️', tsx:'⚛️',
+    html:'🟧', htm:'🟧', css:'🎨', scss:'🎨', sass:'🎨', less:'🎨',
+    json:'📋', md:'📝', txt:'📄', log:'📜',
+    py:'🐍', java:'☕', cpp:'⚙️', cc:'⚙️', c:'⚙️', h:'⚙️', cs:'🎯',
+    go:'🐹', rs:'🦀', rb:'💎', php:'🐘', swift:'🕊️', kt:'🟪',
+    sh:'🐚', bash:'🐚', zsh:'🐚', sql:'🗄️',
+    yml:'⚙️', yaml:'⚙️', toml:'⚙️', ini:'⚙️', env:'⚙️',
+    xml:'📐', csv:'📊', vue:'💚', svelte:'🔥'
+  };
+  return map[ext] || '📄';
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* fallthrough */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+let toastTimer;
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+function looksBinary(text) {
+  // бинарные файлы содержат null-байты в первых символах
+  return /\x00/.test(text.slice(0, 8000));
+}
+
+/* ============================================================
+   Генерация шаблона для ИИ
+   ============================================================ */
+function splitIntoChunks(content, chunkSize) {
+  const lines = content.split(/\r?\n/);
+  const total = lines.length;
+  const padWidth = Math.max(4, String(total).length);
+  const chunks = [];
+  for (let start = 0; start < total; start += chunkSize) {
+    const end = Math.min(start + chunkSize, total);
+    const chunkLines = [];
+    for (let i = start; i < end; i++) {
+      chunkLines.push(String(i + 1).padStart(padWidth, '0') + '│ ' + lines[i]);
+    }
+    chunks.push({
+      index: chunks.length,
+      start: start + 1,
+      end,
+      text: chunkLines.join('\n')
+    });
+  }
+  return { lines, chunks, total, padWidth };
+}
+
+function buildHeader(file, total, totalChunks, chunkSize) {
+  const sizeStr = formatSize(file.size);
+  const updated = formatDate(file.updatedAt);
+  const isUpdated = file.updatedAt > file.createdAt;
+  return [
+    '═'.repeat(60),
+    `📄 FILE: ${file.name}`,
+    `📦 SIZE: ${sizeStr}`,
+    `📏 LINES: ${total}`,
+    `🧩 CHUNKS: ${totalChunks} × ${chunkSize} lines`,
+    `🕒 UPDATED: ${updated}${isUpdated ? '  🔄 (обновлён)' : ''}`,
+    '═'.repeat(60),
+    ''
+  ].join('\n');
+}
+
+function buildChunkSeparator(idx, totalChunks, start, end) {
+  return `────────── CHUNK ${idx + 1}/${totalChunks} · lines ${start}–${end} ──────────\n`;
+}
+
+function buildFullTemplate(file, chunkSize) {
+  const { chunks, total } = splitIntoChunks(file.content, chunkSize);
+  let out = buildHeader(file, total, chunks.length, chunkSize);
+  for (const c of chunks) {
+    out += buildChunkSeparator(c.index, chunks.length, c.start, c.end);
+    out += c.text + '\n\n';
+  }
+  return out;
+}
+
+/* ============================================================
+   Состояние UI
+   ============================================================ */
+let allFiles = [];
+let currentFile = null;
+let chunkSize = parseInt(localStorage.getItem(CHUNK_KEY) || '400', 10);
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const emptyEl = document.getElementById('empty');
+const statsEl = document.getElementById('stats');
+const fileCountEl = document.getElementById('fileCount');
+const chunkSizeInput = document.getElementById('chunkSize');
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+const modalMeta = document.getElementById('modalMeta');
+const modalClose = document.getElementById('modalClose');
+const copyAllBtn = document.getElementById('copyAllBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+
+chunkSizeInput.value = chunkSize;
+chunkSizeInput.addEventListener('change', () => {
+  const v = parseInt(chunkSizeInput.value, 10);
+  if (!isNaN(v) && v >= 50 && v <= 2000) {
+    chunkSize = v;
+    localStorage.setItem(CHUNK_KEY, String(chunkSize));
+    renderFiles();
+    if (currentFile) openPreview(currentFile.name, true);
+  }
+});
+
+/* ============================================================
+   Загрузка файлов
+   ============================================================ */
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFiles(e.target.files);
+  fileInput.value = '';
+});
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropzone.addEventListener(ev, e => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropzone.addEventListener(ev, e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+  })
+);
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+// Не даём браузеру открыть файл, если бросили мимо зоны
+['dragover', 'drop'].forEach(ev =>
+  document.addEventListener(ev, e => e.preventDefault())
+);
+
+async function handleFiles(fileList) {
+  let added = 0, updated = 0, skipped = 0;
+  for (const file of fileList) {
+    try {
+      const text = await readFileAsText(file);
+      if (looksBinary(text)) {
+        skipped++;
+        toast(`Пропущен ${file.name}: похоже, бинарный файл`, 'warning');
+        continue;
+      }
+      const existing = await dbGet(file.name);
+      const now = Date.now();
+      const record = {
+        name: file.name,
+        size: file.size,
+        content: text,
+        lines: text.split(/\r?\n/).length,
+        createdAt: existing ? existing.createdAt : now,
+        updatedAt: now
+      };
+      await dbPut(record);
+      if (existing) updated++;
+      else added++;
+    } catch (err) {
+      console.error('Ошибка чтения файла', file.name, err);
+      skipped++;
+      toast(`Ошибка чтения ${file.name}`, 'error');
+    }
+  }
+  await refresh();
+  const parts = [];
+  if (added) parts.push(`➕ ${added}`);
+  if (updated) parts.push(`🔄 ${updated}`);
+  if (skipped) parts.push(`⚠️ ${skipped}`);
+  if (parts.length) toast(`Готово: ${parts.join(' · ')}`, 'success');
+}
+
+/* ============================================================
+   Рендер списка
+   ============================================================ */
+async function refresh() {
+  allFiles = await dbGetAll();
+  allFiles.sort((a, b) => b.updatedAt - a.updatedAt);
+  renderFiles();
+}
+
+function renderFiles() {
+  fileListEl.innerHTML = '';
+  const totalSize = allFiles.reduce((s, f) => s + f.size, 0);
+  statsEl.innerHTML = `<span>Файлов: <b>${allFiles.length}</b></span>
+    <span>Общий размер: <b>${formatSize(totalSize)}</b></span>
+    <span>Строк в чанке: <b>${chunkSize}</b></span>`;
+  fileCountEl.textContent = allFiles.length ? `(${allFiles.length})` : '';
+
+  if (allFiles.length === 0) {
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  const frag = document.createDocumentFragment();
+  for (const file of allFiles) {
+    const chunksCount = Math.ceil((file.lines || 1) / chunkSize);
+    const isUpdated = file.updatedAt > file.createdAt;
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.innerHTML = `
+      <div class="file-icon">${fileIcon(file.name)}</div>
+      <div class="file-info">
+        <div class="file-name" title="${esc(file.name)}">${esc(file.name)}</div>
+        <div class="file-meta">
+          <span>${formatSize(file.size)}</span>
+          <span>${file.lines} строк</span>
+          <span>${chunksCount} ${chunksCount === 1 ? 'чанк' : 'чанков'}</span>
+          <span>${formatDate(file.updatedAt)}${isUpdated ? ' <span class="updated-badge">🔄</span>' : ''}</span>
+        </div>
+      </div>
+      <div class="file-actions">
+        <button class="btn btn-primary" data-action="preview" data-name="${esc(file.name)}">Превью</button>
+        <button class="btn" data-action="copy" data-name="${esc(file.name)}">📋</button>
+        <button class="btn" data-action="download" data-name="${esc(file.name)}">💾</button>
+        <button class="btn btn-danger" data-action="delete" data-name="${esc(file.name)}">🗑</button>
+      </div>
+    `;
+    frag.appendChild(card);
+  }
+  fileListEl.appendChild(frag);
+}
+
+fileListEl.addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const { action, name } = btn.dataset;
+  const file = allFiles.find(f => f.name === name);
+  if (!file) return;
+
+  if (action === 'preview') {
+    openPreview(name);
+  } else if (action === 'copy') {
+    const tpl = buildFullTemplate(file, chunkSize);
+    const ok = await copyText(tpl);
+    toast(ok ? `Скопирован ${name} (${formatSize(tpl.length)})` : 'Не удалось скопировать', ok ? 'success' : 'error');
+  } else if (action === 'download') {
+    const tpl = buildFullTemplate(file, chunkSize);
+    downloadText(name.replace(/\.[^.]+$/, '') + '.ai.txt', tpl);
+    toast(`Скачан ${name}.ai.txt`, 'success');
+  } else if (action === 'delete') {
+    if (!confirm(`Удалить ${name}?`)) return;
+    await dbDelete(name);
+    await refresh();
+    toast(`Удалён ${name}`, 'success');
+  }
+});
+
+/* ============================================================
+   Модальное окно с превью
+   ============================================================ */
+function openPreview(name, keepScroll = false) {
+  const file = allFiles.find(f => f.name === name);
+  if (!file) return;
+  currentFile = file;
+
+  const { chunks, total } = splitIntoChunks(file.content, chunkSize);
+  const header = buildHeader(file, total, chunks.length, chunkSize);
+
+  modalTitle.textContent = file.name;
+  modalMeta.textContent = `${chunks.length} чанков · ${total} строк · ${formatSize(file.size)}`;
+
+  modalBody.innerHTML = '';
+  // шапка как отдельный блок (можно скопировать)
+  const headerBlock = document.createElement('details');
+  headerBlock.className = 'chunk';
+  headerBlock.open = true;
+  headerBlock.innerHTML = `
+    <summary>
+      <span class="chunk-label">HEADER</span>
+      <span class="chunk-range">метаданные файла</span>
+      <button class="btn-copy-chunk" data-header="1">📋</button>
+    </summary>
+    <pre class="chunk-pre">${esc(header)}</pre>
+  `;
+  modalBody.appendChild(headerBlock);
+
+  for (const c of chunks) {
+    const det = document.createElement('details');
+    det.className = 'chunk';
+    det.innerHTML = `
+      <summary>
+        <span class="chunk-label">CHUNK ${c.index + 1}/${chunks.length}</span>
+        <span class="chunk-range">lines ${c.start}–${c.end}</span>
+        <button class="btn-copy-chunk" data-chunk="${c.index}">📋</button>
+      </summary>
+      <pre class="chunk-pre"></pre>
+    `;
+    const pre = det.querySelector('pre');
+    // ленивый рендер содержимого
+    det.addEventListener('toggle', () => {
+      if (det.open && !pre.dataset.rendered) {
+        pre.textContent = c.text;
+        pre.dataset.rendered = '1';
+      }
+    });
+    if (c.index === 0) det.open = true;
+    modalBody.appendChild(det);
+  }
+
+  // копирование чанка/шапки
+  modalBody.addEventListener('click', async ev => {
+    const b = ev.target.closest('.btn-copy-chunk');
+    if (!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    let text;
+    if (b.dataset.header) text = header;
+    else {
+      const idx = parseInt(b.dataset.chunk, 10);
+      const c = chunks[idx];
+      text = buildChunkSeparator(c.index, chunks.length, c.start, c.end) + c.text;
+    }
+    const ok = await copyText(text);
+    toast(ok ? 'Скопировано' : 'Не удалось скопировать', ok ? 'success' : 'error');
+  }, { once: false });
+
+  modal.classList.add('open');
+  if (!keepScroll) modalBody.scrollTop = 0;
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  currentFile = null;
+  modalBody.innerHTML = '';
+}
+
+modalClose.addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+});
+
+copyAllBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  const tpl = buildFullTemplate(currentFile, chunkSize);
+  const ok = await copyText(tpl);
+  toast(ok ? `Скопирован весь файл (${formatSize(tpl.length)})` : 'Не удалось скопировать', ok ? 'success' : 'error');
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!currentFile) return;
+  const tpl = buildFullTemplate(currentFile, chunkSize);
+  downloadText(currentFile.name.replace(/\.[^.]+$/, '') + '.ai.txt', tpl);
+  toast('Файл скачан', 'success');
+});
+
+/* ============================================================
+   Старт
+   ============================================================ */
+refresh().catch(err => {
+  console.error(err);
+  toast('Ошибка инициализации IndexedDB', 'error');
+});
+</script>
+</body>
+</html>
